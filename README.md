@@ -88,7 +88,7 @@ This page allows new users to register.
 
 1.  **Clone the Repository:**
     ```bash
-    git clone https://github.com/your-username/your-repository.git
+    git clone https://github.com/faraayeesha286941/Face.git
     ```
 
 2.  **Navigate to the Project Directory:**
