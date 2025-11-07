@@ -129,4 +129,9 @@ This page allows new users to register.
     The server will start on `http://127.0.0.1:5000`.
 
 6.  **Open the Frontend:**
+    **Important:** The frontend CANNOT be run from file directly as it causes conflicts with the backend. It can be served any way, but needs to be on somewhere both frontend and backend can access each other.
+    *   **Suggestions for serving the frontend:**
+        *   **VS Code Live Server Extension:** If you are using VS Code, the "Live Server" extension can be used to serve the `routes` directory.
+        *   **Python's http.server:** You can serve the `routes` directory using Python's built-in HTTP server. Navigate to the `routes` directory in your terminal and run: `python -m http.server 8000`
+        *   **Node.js http-server:** If you have Node.js installed, you can use the `http-server` package. Install it globally (`npm install -g http-server`) and then navigate to the `routes` directory and run: `http-server`
     Open the [`routes/register.html`](routes/register.html:1) file in your web browser to register a new user. Then, open [`routes/index.html`](routes/index.html:1) to start the verification process.
