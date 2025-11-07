@@ -3,3 +3,4 @@ flask_cors
 deepface
 opencv-python
 numpy
+tf-keras

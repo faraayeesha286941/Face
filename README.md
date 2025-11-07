@@ -86,7 +86,17 @@ This page allows new users to register.
 
 ## How to Run
 
-1.  **Set up a Virtual Environment:**
+1.  **Clone the Repository:**
+    ```bash
+    git clone https://github.com/your-username/your-repository.git
+    ```
+
+2.  **Navigate to the Project Directory:**
+    ```bash
+    cd Face
+    ```
+
+3.  **Set up a Virtual Environment:**
 
     It is highly recommended to run this project in a virtual environment to manage dependencies cleanly.
 
@@ -105,18 +115,18 @@ This page allows new users to register.
             source venv/bin/activate
             ```
 
-2.  **Install Dependencies:**
+4.  **Install Dependencies:**
 
     With your virtual environment activated, install the required packages from the `requirements.txt` file.
     ```bash
     pip install -r requirements.txt
     ```
 
-3.  **Run the Backend Server:**
+5.  **Run the Backend Server:**
     ```bash
     python app.py
     ```
     The server will start on `http://127.0.0.1:5000`.
 
-4.  **Open the Frontend:**
+6.  **Open the Frontend:**
     Open the [`routes/register.html`](routes/register.html:1) file in your web browser to register a new user. Then, open [`routes/index.html`](routes/index.html:1) to start the verification process.
