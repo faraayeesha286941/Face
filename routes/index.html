@@ -37,9 +37,13 @@
         const statusBox = document.getElementById('status-box');
 
         const BACKEND_URL = 'http://127.0.0.1:5000/verify';
-        const CAPTURE_INTERVAL = 1000; // Capture a frame every 1 second
+        const CAPTURE_INTERVAL_ACTIVE = 1000; // For active scanning
+        const CAPTURE_INTERVAL_PAUSED = 3000; // For presence check after verification
 
         let isVerifying = false;
+        let currentInterval = CAPTURE_INTERVAL_ACTIVE;
+        let intervalId = null;
+        let lastVerifiedId = null;
 
         const updateStatus = (status, message, id = null) => {
             statusBox.className = 'status-box';
@@ -70,11 +74,21 @@
             }
         };
 
+        const rescheduleVerification = (newInterval) => {
+            if (currentInterval !== newInterval) {
+                clearInterval(intervalId);
+                currentInterval = newInterval;
+                intervalId = setInterval(verifyFrame, currentInterval);
+            }
+        };
+
         const verifyFrame = async () => {
             if (isVerifying) return;
 
             isVerifying = true;
-            updateStatus('Verifying', 'Verifying...', null);
+            if (currentInterval === CAPTURE_INTERVAL_ACTIVE) {
+                updateStatus('Verifying', 'Verifying...', null);
+            }
 
             const canvas = document.createElement('canvas');
             canvas.width = video.videoWidth;
@@ -97,14 +111,33 @@
                 if (!response.ok) throw new Error(`Server error: ${response.status}`);
 
                 const result = await response.json();
+
                 if (result.error) {
-                    updateStatus('Error', result.error);
-                } else {
+                    if (lastVerifiedId) {
+                        updateStatus('Neutral', 'Webcam active. Position your face in the frame.');
+                    } else {
+                        updateStatus('Error', result.error);
+                    }
+                    lastVerifiedId = null;
+                    rescheduleVerification(CAPTURE_INTERVAL_ACTIVE);
+                } else if (result.status === 'Verified') {
                     updateStatus(result.status, result.message, result.id);
+                    lastVerifiedId = result.id;
+                    rescheduleVerification(CAPTURE_INTERVAL_PAUSED);
+                } else {
+                    if (lastVerifiedId) {
+                        updateStatus('Neutral', 'Webcam active. Position your face in the frame.');
+                    } else {
+                        updateStatus(result.status, result.message, result.id);
+                    }
+                    lastVerifiedId = null;
+                    rescheduleVerification(CAPTURE_INTERVAL_ACTIVE);
                 }
             } catch (error) {
                 console.error("Error sending frame to backend:", error);
                 updateStatus('Error', 'Cannot connect to the backend.');
+                lastVerifiedId = null;
+                rescheduleVerification(CAPTURE_INTERVAL_ACTIVE);
             } finally {
                 isVerifying = false;
             }
@@ -120,7 +153,7 @@
                 updateStatus('Neutral', 'Webcam active. Position your face in the frame.');
 
                 video.onloadedmetadata = () => {
-                    setInterval(verifyFrame, CAPTURE_INTERVAL);
+                    intervalId = setInterval(verifyFrame, currentInterval);
                 };
             } catch (err) {
                 console.error("Error accessing webcam:", err);

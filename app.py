@@ -133,11 +133,12 @@ def register_user():
         face_objs = DeepFace.extract_faces(
             img_path=frame,
             detector_backend="mtcnn",
-            enforce_detection=True # Ensure a face is found
+            enforce_detection=False # Set to False to check confidence manually
         )
 
-        if not face_objs:
-             return jsonify({"status": "Error", "message": "No face detected in the image. Please try again."}), 200
+        # Ensure a high-quality face is detected for registration
+        if not face_objs or face_objs[0]['confidence'] < 0.95:
+             return jsonify({"status": "Error", "message": "No clear face detected. Please provide a better image."}), 200
 
         # --- Create directory and save image ---
         os.makedirs(user_dir)
@@ -189,8 +190,9 @@ def verify_face():
             enforce_detection=False
         )
 
-        if not face_objs:
-            return jsonify({"status": "Error", "message": "No face detected."}), 200
+        # A higher confidence threshold helps filter out false positives on noisy or empty frames.
+        if not face_objs or face_objs[0]['confidence'] < 0.95:
+            return jsonify({"status": "Unverified", "message": "No face detected."}), 200
 
         face_obj = face_objs[0]
 
