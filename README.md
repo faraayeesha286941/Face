@@ -108,7 +108,7 @@ This page allows new users to register.
     *   **Activate the virtual environment:**
         *   On Windows:
             ```bash
-            .\venv\Scripts\activate
+            venv\Scripts\activate
             ```
         *   On macOS/Linux:
             ```bash
