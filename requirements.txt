@@ -4,3 +4,4 @@ deepface
 opencv-python
 numpy
 tf-keras
+torch
