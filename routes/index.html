@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-Time Face Verification</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; justify-content: center; align-items: center; flex-direction: column; height: 100vh; margin: 0; background-color: #f0f2f5; color: #333; }
+        #container { display: flex; flex-direction: column; align-items: center; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); border: 1px solid #e0e0e0; }
+        h1 { margin-top: 0; color: #1c1e21; }
+        nav { margin-bottom: 1rem; }
+        nav a { margin: 0 15px; text-decoration: none; color: #007bff; font-weight: bold; font-size: 1.1em; }
+        #video-container { position: relative; width: 640px; height: 480px; border-radius: 8px; overflow: hidden; border: 2px solid #ccc; }
+        video { display: block; width: 100%; height: 100%; transform: scaleX(-1); }
+        #status-box { margin-top: 20px; padding: 15px 25px; border-radius: 8px; font-size: 1.5em; font-weight: bold; text-align: center; width: 640px; box-sizing: border-box; transition: all 0.3s ease; }
+        .status-neutral { background-color: #e4e6eb; color: #333; }
+        .status-verifying { background-color: #ffc107; color: white; }
+        .status-verified { background-color: #28a745; color: white; }
+        .status-unverified { background-color: #dc3545; color: white; }
+        .status-error { background-color: #6c757d; color: white; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>Real-Time Face Verification</h1>
+        <nav>
+            <a href="register.html">Register</a> | <a href="index.html">Verify</a>
+        </nav>
+        <div id="video-container">
+            <video id="webcam" autoplay muted playsinline></video>
+        </div>
+        <div id="status-box" class="status-neutral">Initializing...</div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const statusBox = document.getElementById('status-box');
+
+        const BACKEND_URL = 'http://127.0.0.1:5000/verify';
+        const CAPTURE_INTERVAL = 1000; // Capture a frame every 1 second
+
+        let isVerifying = false;
+
+        const updateStatus = (status, message, id = null) => {
+            statusBox.className = 'status-box';
+            switch (status) {
+                case 'Verified':
+                    statusBox.classList.add('status-verified');
+                    statusBox.textContent = `Verified: Welcome, ${id}!`;
+                    break;
+                case 'Unverified':
+                    statusBox.classList.add('status-unverified');
+                    statusBox.textContent = message;
+                    break;
+                case 'Failed':
+                    statusBox.classList.add('status-unverified');
+                    statusBox.textContent = `Verification Failed: ${message}`;
+                    break;
+                case 'Verifying':
+                    statusBox.classList.add('status-verifying');
+                    statusBox.textContent = message;
+                    break;
+                case 'Error':
+                    statusBox.classList.add('status-error');
+                    statusBox.textContent = `Status: ${message}`;
+                    break;
+                default:
+                    statusBox.classList.add('status-neutral');
+                    statusBox.textContent = message;
+            }
+        };
+
+        const verifyFrame = async () => {
+            if (isVerifying) return;
+
+            isVerifying = true;
+            updateStatus('Verifying', 'Verifying...', null);
+
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+
+            context.translate(canvas.width, 0);
+            context.scale(-1, 1);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            const base64Image = canvas.toDataURL('image/jpeg').split(',')[1];
+
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ image: base64Image })
+                });
+
+                if (!response.ok) throw new Error(`Server error: ${response.status}`);
+
+                const result = await response.json();
+                if (result.error) {
+                    updateStatus('Error', result.error);
+                } else {
+                    updateStatus(result.status, result.message, result.id);
+                }
+            } catch (error) {
+                console.error("Error sending frame to backend:", error);
+                updateStatus('Error', 'Cannot connect to the backend.');
+            } finally {
+                isVerifying = false;
+            }
+        };
+
+        const startWebcam = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                video.srcObject = stream;
+                updateStatus('Neutral', 'Webcam active. Position your face in the frame.');
+
+                video.onloadedmetadata = () => {
+                    setInterval(verifyFrame, CAPTURE_INTERVAL);
+                };
+            } catch (err) {
+                console.error("Error accessing webcam:", err);
+                updateStatus('Error', 'Could not access the webcam.');
+            }
+        };
+
+        startWebcam();
+    </script>
+</body>
+</html>

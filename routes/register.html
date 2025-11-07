@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>User Registration</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; display: flex; justify-content: center; align-items: center; flex-direction: column; height: 100vh; margin: 0; background-color: #f0f2f5; color: #333; }
+        #container { display: flex; flex-direction: column; align-items: center; background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1); border: 1px solid #e0e0e0; min-width: 680px; }
+        h1 { margin-top: 0; color: #1c1e21; }
+        nav { margin-bottom: 1rem; }
+        nav a { margin: 0 15px; text-decoration: none; color: #007bff; font-weight: bold; font-size: 1.1em; }
+        #video-container, #preview-container { position: relative; width: 640px; height: 480px; border-radius: 8px; overflow: hidden; border: 2px solid #ccc; background-color: #000; display: none; }
+        video, #image-preview { display: block; width: 100%; height: 100%; object-fit: cover; }
+        video { transform: scaleX(-1); }
+        #controls { display: flex; flex-direction: column; align-items: center; margin-top: 20px; width: 100%; }
+        .input-group { margin-bottom: 1rem; width: 100%; max-width: 640px; }
+        input[type="text"], input[type="file"] { width: 100%; padding: 12px; border-radius: 6px; border: 1px solid #ccc; box-sizing: border-box; }
+        button { padding: 12px 25px; border-radius: 8px; font-size: 1.2em; font-weight: bold; cursor: pointer; border: none; transition: background-color 0.3s; width: 100%; max-width: 640px; margin-top: 10px;}
+        .primary-btn { background-color: #007bff; color: white; }
+        .primary-btn:hover { background-color: #0056b3; }
+        .secondary-btn { background-color: #6c757d; color: white; }
+        .secondary-btn:hover { background-color: #5a6268; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status-box { margin-top: 20px; padding: 15px 25px; border-radius: 8px; font-size: 1.2em; font-weight: bold; text-align: center; width: 640px; box-sizing: border-box; transition: all 0.3s ease; }
+        .status-neutral { background-color: #e4e6eb; color: #333; }
+        .status-success { background-color: #28a745; color: white; }
+        .status-error { background-color: #dc3545; color: white; }
+        .status-processing { background-color: #ffc107; color: white; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <h1>User Registration</h1>
+        <nav>
+            <a href="register.html">Register</a> | <a href="index.html">Verify</a>
+        </nav>
+        <div id="video-container">
+            <video id="webcam" autoplay muted playsinline></video>
+        </div>
+        <div id="preview-container">
+            <img id="image-preview" src="" alt="Image Preview">
+        </div>
+        <div id="controls">
+            <div class="input-group">
+                <input type="text" id="name-input" placeholder="Enter Your Name">
+            </div>
+            <div class="input-group">
+                <button id="capture-btn" class="secondary-btn">Capture from Webcam</button>
+            </div>
+            <div class="input-group">
+                <label for="file-upload">Or upload a file:</label>
+                <input type="file" id="file-upload" accept="image/jpeg, image/png">
+            </div>
+            <button id="register-btn" class="primary-btn" disabled>Register</button>
+        </div>
+        <div id="status-box" class="status-neutral">Please provide your name and an image.</div>
+    </div>
+
+    <script>
+        const video = document.getElementById('webcam');
+        const nameInput = document.getElementById('name-input');
+        const registerBtn = document.getElementById('register-btn');
+        const captureBtn = document.getElementById('capture-btn');
+        const fileUpload = document.getElementById('file-upload');
+        const statusBox = document.getElementById('status-box');
+        const videoContainer = document.getElementById('video-container');
+        const previewContainer = document.getElementById('preview-container');
+        const imagePreview = document.getElementById('image-preview');
+
+        const BACKEND_URL = 'http://127.0.0.1:5000/register';
+        let capturedImageB64 = null;
+
+        const updateStatus = (status, message) => {
+            statusBox.className = 'status-box';
+            statusBox.classList.add(`status-${status}`);
+            statusBox.textContent = message;
+        };
+
+        const checkFormState = () => {
+            registerBtn.disabled = !(nameInput.value.trim() && capturedImageB64);
+        };
+
+        const startWebcam = async () => {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { width: 640, height: 480 } });
+                video.srcObject = stream;
+                videoContainer.style.display = 'block';
+                previewContainer.style.display = 'none';
+                updateStatus('neutral', 'Webcam active. Press "Capture" to take a picture.');
+            } catch (err) {
+                console.error("Error accessing webcam:", err);
+                updateStatus('error', 'Could not access webcam. Please allow camera permissions.');
+            }
+        };
+
+        captureBtn.addEventListener('click', () => {
+            if (!video.srcObject) {
+                startWebcam(); // Start webcam if not already running
+                return;
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            const context = canvas.getContext('2d');
+            context.translate(canvas.width, 0);
+            context.scale(-1, 1);
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            imagePreview.src = canvas.toDataURL('image/jpeg');
+            videoContainer.style.display = 'none';
+            previewContainer.style.display = 'block';
+
+            capturedImageB64 = canvas.toDataURL('image/jpeg').split(',')[1];
+            updateStatus('neutral', 'Image captured. Enter your name and press Register.');
+            checkFormState();
+        });
+
+        fileUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                imagePreview.src = e.target.result;
+                videoContainer.style.display = 'none';
+                previewContainer.style.display = 'block';
+                capturedImageB64 = e.target.result.split(',')[1];
+                updateStatus('neutral', 'Image loaded. Enter your name and press Register.');
+                checkFormState();
+            };
+            reader.readAsDataURL(file);
+        });
+
+        nameInput.addEventListener('input', checkFormState);
+
+        registerBtn.addEventListener('click', async () => {
+            const name = nameInput.value.trim();
+            if (!name || !capturedImageB64) {
+                updateStatus('error', 'Name and image are required.');
+                return;
+            }
+
+            updateStatus('processing', 'Registering... Please wait.');
+            registerBtn.disabled = true;
+
+            try {
+                const response = await fetch(BACKEND_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name: name, image: capturedImageB64 })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    updateStatus('success', result.message);
+                } else {
+                    updateStatus('error', result.message || result.error || 'Registration failed.');
+                }
+            } catch (error) {
+                console.error("Error during registration:", error);
+                updateStatus('error', 'Cannot connect to the backend.');
+            } finally {
+                checkFormState(); // Re-evaluate button state
+            }
+        });
+
+        // Initialize
+        startWebcam();
+    </script>
+</body>
+</html>
