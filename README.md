@@ -86,25 +86,37 @@ This page allows new users to register.
 
 ## How to Run
 
-1.  **Install Dependencies:**
-    It is recommended to create a `requirements.txt` file with the following content:
-    ```
-    flask
-    flask_cors
-    deepface
-    opencv-python
-    numpy
-    ```
-    Then install them using pip:
+1.  **Set up a Virtual Environment:**
+
+    It is highly recommended to run this project in a virtual environment to manage dependencies cleanly.
+
+    *   **Create the virtual environment:**
+        ```bash
+        python -m venv venv
+        ```
+
+    *   **Activate the virtual environment:**
+        *   On Windows:
+            ```bash
+            .\venv\Scripts\activate
+            ```
+        *   On macOS/Linux:
+            ```bash
+            source venv/bin/activate
+            ```
+
+2.  **Install Dependencies:**
+
+    With your virtual environment activated, install the required packages from the `requirements.txt` file.
     ```bash
     pip install -r requirements.txt
     ```
 
-2.  **Run the Backend Server:**
+3.  **Run the Backend Server:**
     ```bash
     python app.py
     ```
     The server will start on `http://127.0.0.1:5000`.
 
-3.  **Open the Frontend:**
+4.  **Open the Frontend:**
     Open the [`routes/register.html`](routes/register.html:1) file in your web browser to register a new user. Then, open [`routes/index.html`](routes/index.html:1) to start the verification process.
