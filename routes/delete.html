@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete User</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; margin: 0; background-color: #f0f2f5; color: #333; }
+        nav { width: 100%; background-color: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.1); padding: 1rem 0; text-align: center; }
+        nav a { margin: 0 15px; text-decoration: none; color: #007bff; font-weight: bold; font-size: 1.1em; }
+        .container {
+            background-color: #fff;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+            margin: 2rem auto;
+        }
+        h1 {
+            margin-top: 0;
+            color: #1c1e21;
+            margin-bottom: 1.5rem;
+        }
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            text-align: left;
+        }
+        input[type="text"] {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #dddfe2;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-size: 1rem;
+        }
+        button {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 6px;
+            background-color: #dc3545; /* Red for delete */
+            color: white;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        button:hover {
+            background-color: #c82333;
+        }
+        .message {
+            margin-top: 1.5rem;
+            font-size: 1rem;
+            padding: 1rem;
+            border-radius: 6px;
+            display: none; /* Hidden by default */
+        }
+        .message.success {
+            background-color: #d4edda;
+            color: #155724;
+            display: block;
+        }
+        .message.error {
+            background-color: #f8d7da;
+            color: #721c24;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="register.html">Register</a>
+        <a href="index.html">Verify</a>
+        <a href="delete.html">Delete User</a>
+    </nav>
+    <div class="container">
+        <h1>Delete a User</h1>
+        <form id="deleteForm">
+            <div class="form-group">
+                <label for="name">Select User to Delete:</label>
+                <select id="name" name="name" required>
+                    <option value="" disabled selected>-- Loading users... --</option>
+                </select>
+            </div>
+            <button type="submit">Delete User</button>
+        </form>
+        <div id="responseMessage" class="message"></div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const userSelect = document.getElementById('name');
+            const responseMessage = document.getElementById('responseMessage');
+            const submitButton = document.querySelector('button[type="submit"]');
+            submitButton.disabled = true; // Disable button initially
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/users');
+                const result = await response.json();
+
+                userSelect.innerHTML = ''; // Clear loading text
+
+                if (response.ok) {
+                    if (result.users && result.users.length > 0) {
+                        const defaultOption = document.createElement('option');
+                        defaultOption.value = "";
+                        defaultOption.textContent = "-- Select a user --";
+                        defaultOption.disabled = true;
+                        defaultOption.selected = true;
+                        userSelect.appendChild(defaultOption);
+
+                        result.users.forEach(user => {
+                            const option = document.createElement('option');
+                            option.value = user;
+                            option.textContent = user;
+                            userSelect.appendChild(option);
+                        });
+                        submitButton.disabled = false; // Enable button
+                    } else {
+                        const option = document.createElement('option');
+                        option.textContent = 'No users found';
+                        option.disabled = true;
+                        userSelect.appendChild(option);
+                    }
+                } else {
+                    const errorMessage = result.error || 'Failed to load users.';
+                    responseMessage.textContent = `Error: ${errorMessage}`;
+                    responseMessage.classList.add('error');
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                responseMessage.textContent = 'Failed to connect to the server to get user list.';
+                responseMessage.classList.add('error');
+            }
+        });
+
+        document.getElementById('deleteForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const name = document.getElementById('name').value;
+            const responseMessage = document.getElementById('responseMessage');
+
+            responseMessage.textContent = '';
+            responseMessage.className = 'message';
+
+            if (!name) {
+                responseMessage.textContent = 'Please select a user to delete.';
+                responseMessage.classList.add('error');
+                return;
+            }
+
+            try {
+                const response = await fetch('http://127.0.0.1:5000/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ name: name })
+                });
+
+                const result = await response.json();
+
+                if (response.ok && result.status === 'Success') {
+                    responseMessage.textContent = result.message;
+                    responseMessage.classList.add('success');
+                    
+                    // Remove the deleted user from the dropdown
+                    const userSelect = document.getElementById('name');
+                    const optionToRemove = userSelect.querySelector(`option[value="${name}"]`);
+                    if (optionToRemove) {
+                        userSelect.removeChild(optionToRemove);
+                    }
+                    userSelect.selectedIndex = 0; // Reset to default option
+
+                } else {
+                    const errorMessage = result.message || result.error || 'An unknown error occurred.';
+                    responseMessage.textContent = `Error: ${errorMessage}`;
+                    responseMessage.classList.add('error');
+                }
+            } catch (error) {
+                console.error("Fetch error:", error);
+                responseMessage.textContent = 'Failed to connect to the server. Is it running?';
+                responseMessage.classList.add('error');
+            }
+        });
+    </script>
+
+</body>
+</html>

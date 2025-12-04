@@ -4,6 +4,7 @@ import glob
 import numpy as np
 import base64
 import re
+import shutil
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from deepface import DeepFace
@@ -12,7 +13,6 @@ from deepface import DeepFace
 # The path to your face database.
 DB_PATH = "./database"
 
-# --- Flask App Initialization ---
 # --- Flask App Initialization ---
 app = Flask(__name__)
 
@@ -163,7 +163,6 @@ def register_user():
 
 
 @app.route('/verify', methods=['POST'])
-@app.route('/verify', methods=['POST'])
 def verify_face():
     """
     API endpoint to verify a face from an image with a similarity threshold.
@@ -258,6 +257,60 @@ def verify_face():
 
     except Exception as e:
         print(f"---!!! ERROR during verification: {e} !!!---")
+        return jsonify({"error": f"An internal server error occurred: {e}"}), 500
+
+
+# --- NEW USERS ENDPOINT ---
+@app.route('/users', methods=['GET'])
+def get_users():
+    """
+    API endpoint to get a list of all registered users.
+    """
+    try:
+        # List directories in DB_PATH, which correspond to user names
+        users = [d for d in os.listdir(DB_PATH) if os.path.isdir(os.path.join(DB_PATH, d))]
+        return jsonify({"users": users}), 200
+    except Exception as e:
+        print(f"---!!! ERROR fetching users: {e} !!!---")
+        return jsonify({"error": f"An internal server error occurred: {e}"}), 500
+
+
+# --- NEW DELETE ENDPOINT ---
+@app.route('/delete', methods=['POST'])
+def delete_user():
+    """
+    API endpoint to delete a user from the database.
+    Expects a JSON payload with a 'name' key.
+    """
+    if not request.json or 'name' not in request.json:
+        return jsonify({"error": "Bad Request: Missing 'name' in JSON payload."}), 400
+
+    name = request.json['name']
+
+    # --- Input validation ---
+    if not name or not re.match("^[a-zA-Z0-9_-]+$", name):
+        return jsonify({"status": "Error", "message": "Invalid name format."}), 400
+
+    user_dir = os.path.join(DB_PATH, name)
+
+    if not os.path.isdir(user_dir):
+        return jsonify({"status": "Error", "message": f"User '{name}' not found."}), 404
+
+    try:
+        # Remove the user's directory and all its contents
+        shutil.rmtree(user_dir)
+
+        # Invalidate the pkl file to force a rebuild on the next verification
+        pkl_files = glob.glob(os.path.join(DB_PATH, "representations_*.pkl"))
+        if pkl_files:
+            os.remove(pkl_files[0])
+            print("-> Removed representations.pkl to force a rebuild.")
+
+        print(f"-> User '{name}' deleted successfully.")
+        return jsonify({"status": "Success", "message": f"User '{name}' has been deleted."}), 200
+
+    except Exception as e:
+        print(f"---!!! ERROR during deletion: {e} !!!---")
         return jsonify({"error": f"An internal server error occurred: {e}"}), 500
 
 
