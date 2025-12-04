@@ -163,9 +163,10 @@ def register_user():
 
 
 @app.route('/verify', methods=['POST'])
+@app.route('/verify', methods=['POST'])
 def verify_face():
     """
-    API endpoint to verify a face from an image.
+    API endpoint to verify a face from an image with a similarity threshold.
     Expects a JSON payload with an 'image' key containing a base64 encoded string.
     """
     if not request.json or 'image' not in request.json:
@@ -190,13 +191,11 @@ def verify_face():
             enforce_detection=False
         )
 
-        # A higher confidence threshold helps filter out false positives on noisy or empty frames.
         if not face_objs or face_objs[0]['confidence'] < 0.95:
             return jsonify({"status": "Unverified", "message": "No face detected."}), 200
 
         face_obj = face_objs[0]
 
-        # --- Anti-Spoofing Check ---
         if not face_obj['is_real']:
             return jsonify({"status": "Failed", "message": "Spoof attempt detected."}), 200
 
@@ -205,23 +204,62 @@ def verify_face():
         x, y, w, h = facial_area['x'], facial_area['y'], facial_area['w'], facial_area['h']
         face_roi = frame[y:y+h, x:x+w]
 
+        # --- Define model and distance metric for consistency ---
+        model_name = "VGG-Face"
+        distance_metric = "cosine"
+
         dfs = DeepFace.find(
             img_path=face_roi,
             db_path=DB_PATH,
+            model_name=model_name,
+            distance_metric=distance_metric,
             enforce_detection=False,
             silent=True
         )
 
         if len(dfs) > 0 and not dfs[0].empty:
-            identity = dfs[0]['identity'][0]
-            name = os.path.basename(os.path.dirname(identity))
-            return jsonify({"status": "Verified", "id": name}), 200
+            # --- Dynamically find the distance column ---
+            best_match = dfs[0].iloc[0]
+            identity = best_match['identity']
+
+            # The distance column is usually named 'model_name_metric', e.g., 'VGG-Face_cosine'
+            # This finds the correct column name dynamically.
+            distance_col_name = f"{model_name}_{distance_metric}"
+            if distance_col_name not in best_match.index:
+                 # Fallback for older deepface versions or different naming conventions
+                 distance_col_name = 'distance' # Some versions might use a generic 'distance' column
+                 if distance_col_name not in best_match.index:
+                      # If still not found, search for any column containing the metric name
+                      cols = [col for col in best_match.index if distance_metric in col]
+                      if not cols:
+                          raise ValueError("Could not find the distance metric column in the result.")
+                      distance_col_name = cols[0]
+
+            distance = best_match[distance_col_name]
+
+            # Convert cosine distance to a similarity percentage
+            similarity_percent = (1 - distance) * 100
+
+            if similarity_percent >= 50:
+                name = os.path.basename(os.path.dirname(identity))
+                return jsonify({
+                    "status": "Verified",
+                    "id": name,
+                    "similarity": f"{similarity_percent:.2f}%"
+                }), 200
+            else:
+                return jsonify({
+                    "status": "Unverified",
+                    "message": f"Verification failed: Similarity ({similarity_percent:.2f}%) is below the 50% threshold.",
+                    "similarity": f"{similarity_percent:.2f}%"
+                }), 200
         else:
             return jsonify({"status": "Unverified", "message": "Unknown person."}), 200
 
     except Exception as e:
         print(f"---!!! ERROR during verification: {e} !!!---")
-        return jsonify({"error": "An internal server error occurred."}), 500
+        return jsonify({"error": f"An internal server error occurred: {e}"}), 500
+
 
 if __name__ == '__main__':
     initialize_backend()
