@@ -6,7 +6,7 @@ import base64
 import re
 import shutil
 import uuid
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, send_from_directory
 from flask_cors import CORS
 from deepface import DeepFace
 
@@ -318,6 +318,54 @@ def delete_user():
     except Exception as e:
         print(f"---!!! ERROR during deletion: {e} !!!---")
         return jsonify({"error": f"An internal server error occurred: {e}"}), 500
+
+# --- ADMIN / VIEWING ROUTES ---
+
+@app.route('/users/<name>/images', methods=['GET'])
+def get_user_images(name):
+    """
+    API endpoint to list all image filenames for a specific user.
+    """
+    # --- Input validation to prevent path traversal ---
+    if not name or not re.match("^[a-zA-Z0-9_-]+$", name):
+        return jsonify({"error": "Invalid user name."}), 400
+
+    user_dir = os.path.join(DB_PATH, name)
+
+    if not os.path.exists(user_dir):
+        return jsonify({"error": "User not found."}), 404
+
+    try:
+        # Get list of files (jpg, png, etc)
+        image_extensions = ['*.jpg', '*.jpeg', '*.png']
+        images = []
+        for ext in image_extensions:
+            # We only want the filename, not the full path
+            images.extend([os.path.basename(f) for f in glob.glob(os.path.join(user_dir, ext))])
+
+        return jsonify({"user": name, "images": images}), 200
+    except Exception as e:
+        return jsonify({"error": f"Error retrieving images: {e}"}), 500
+
+
+@app.route('/database_files/<name>/<filename>', methods=['GET'])
+def serve_user_image(name, filename):
+    """
+    API endpoint to serve the actual image file to the browser.
+    Usage in HTML: <img src="/database_files/john_doe/some-uuid.jpg">
+    """
+    # --- Input validation ---
+    if not re.match("^[a-zA-Z0-9_-]+$", name):
+        return jsonify({"error": "Invalid user name."}), 400
+
+    # Check if user directory exists
+    user_dir = os.path.abspath(os.path.join(DB_PATH, name))
+
+    # send_from_directory automatically handles security against path traversal
+    try:
+        return send_from_directory(user_dir, filename)
+    except Exception as e:
+        return jsonify({"error": "File not found or access denied."}), 404
 
 
 if __name__ == '__main__':
