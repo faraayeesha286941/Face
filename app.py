@@ -5,6 +5,7 @@ import numpy as np
 import base64
 import re
 import shutil
+import uuid
 from flask import Flask, request, jsonify, render_template
 from flask_cors import CORS
 from deepface import DeepFace
@@ -104,8 +105,7 @@ def initialize_backend():
 @app.route('/register', methods=['POST'])
 def register_user():
     """
-    API endpoint to register a new user with their name and face.
-    Expects a JSON payload with 'name' and 'image' keys.
+    API endpoint to register a new user or add a new face to an existing user.
     """
     if not request.json or 'image' not in request.json or 'name' not in request.json:
         return jsonify({"error": "Bad Request: Missing 'image' or 'name' in JSON payload."}), 400
@@ -117,50 +117,56 @@ def register_user():
     if not name or not re.match("^[a-zA-Z0-9_-]+$", name):
         return jsonify({"status": "Error", "message": "Invalid name. Use only letters, numbers, underscores, or hyphens."}), 400
 
-    # --- Create user directory ---
+    # --- Create user directory (if it doesn't exist) ---
     user_dir = os.path.join(DB_PATH, name)
-    if os.path.exists(user_dir):
-        return jsonify({"status": "Error", "message": f"User '{name}' already exists."}), 400
+    if not os.path.exists(user_dir):
+        os.makedirs(user_dir)
+
+    # --- Check for duplicate/spamming (Optional limit) ---
+    # existing_images = glob.glob(os.path.join(user_dir, "*"))
+    # if len(existing_images) >= 5:
+    #     return jsonify({"status": "Error", "message": "Max 5 images per user allowed."}), 400
 
     try:
         # --- Decode image and save ---
         image_data = base64.b64decode(image_b64)
         nparr = np.frombuffer(image_data, np.uint8)
         frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-        frame = resize_image(frame) # Resize before processing
+        frame = resize_image(frame)
 
         # --- Validate that there is a detectable face ---
         face_objs = DeepFace.extract_faces(
             img_path=frame,
             detector_backend="mtcnn",
-            enforce_detection=False # Set to False to check confidence manually
+            enforce_detection=False
         )
 
-        # Ensure a high-quality face is detected for registration
         if not face_objs or face_objs[0]['confidence'] < 0.95:
              return jsonify({"status": "Error", "message": "No clear face detected. Please provide a better image."}), 200
 
-        # --- Create directory and save image ---
-        os.makedirs(user_dir)
-        output_path = os.path.join(user_dir, "face.jpg")
+        # --- Generate Unique Filename ---
+        # Instead of 'face.jpg', we use a UUID to ensure every image has a unique name
+        unique_filename = f"{uuid.uuid4()}.jpg"
+        output_path = os.path.join(user_dir, unique_filename)
+
         cv2.imwrite(output_path, frame)
 
-        print(f"-> User '{name}' registered successfully. Image saved to '{output_path}'.")
+        print(f"-> User '{name}' updated. New image saved to '{output_path}'.")
+
         # Invalidate the pkl file to force a rebuild on the next verification
         pkl_files = glob.glob(os.path.join(DB_PATH, "representations_*.pkl"))
         if pkl_files:
             os.remove(pkl_files[0])
             print("-> Removed representations.pkl to force a rebuild.")
 
-        return jsonify({"status": "Success", "message": f"User {name} registered successfully!"}), 201
+        return jsonify({"status": "Success", "message": f"Image added for user {name} successfully!"}), 201
 
     except Exception as e:
         print(f"---!!! ERROR during registration: {e} !!!---")
-        # Clean up created directory on failure
-        if os.path.exists(user_dir):
+        # Only remove directory if it is empty (meaning we just created it and failed)
+        if os.path.exists(user_dir) and not os.listdir(user_dir):
             os.rmdir(user_dir)
         return jsonify({"error": f"An internal server error occurred: {e}"}), 500
-
 
 @app.route('/verify', methods=['POST'])
 def verify_face():
